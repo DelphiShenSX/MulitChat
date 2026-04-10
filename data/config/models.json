@@ -1,0 +1,57 @@
+{
+  "models": [
+    {
+      "id": "default-openai",
+      "alias": "1号MiniMax",
+      "model_name": "minimax-m-2-5",
+      "api_type": "OpenAI",
+      "base_url": "https://api.lkeap.cloud.tencent.com/plan/v3",
+      "api_key": "sk-tp-key",
+      "default_prompt": "你是一个思维灵活的独立思考人，擅长使用各种方法论进行思考",
+      "enabled": true,
+      "is_default": false
+    },
+    {
+      "id": "model_1775722737044_wxo5hxbfv",
+      "alias": "2号 混元",
+      "model_name": "hunyuan-turbos",
+      "api_type": "OpenAI",
+      "base_url": "https://api.lkeap.cloud.tencent.com/plan/v3",
+      "api_key": "sk-tp-key",
+      "default_prompt": "你是一个思维灵活的独立思考人，擅长使用逆向思维方法论进行思考",
+      "enabled": true,
+      "is_default": false
+    },
+    {
+      "id": "model_1775722774470_lzq0e2iho",
+      "alias": "3号 智谱",
+      "model_name": "glm-5-0",
+      "api_type": "OpenAI",
+      "base_url": "https://api.lkeap.cloud.tencent.com/plan/v3",
+      "api_key": "sk-tp-key",
+      "default_prompt": "你是一个思维灵活的独立思考人，擅长使用第一性原理方法论进行思考",
+      "enabled": true,
+      "is_default": false
+    },
+    {
+      "id": "model_1775722809671_oyj206rm5",
+      "alias": "4号 Kimi",
+      "model_name": "kimi-k-2-5",
+      "api_type": "OpenAI",
+      "base_url": "https://api.lkeap.cloud.tencent.com/plan/v3",
+      "api_key": "sk-tp-key",
+      "default_prompt": "你是一个思维灵活的独立思考人，擅长使用TRIZ方法论进行思考",
+      "enabled": true,
+      "is_default": false
+    }
+  ],
+  "settings": {
+    "default_stop_condition": {
+      "type": "rounds",
+      "value": 5
+    },
+    "max_tokens_per_request": 4096,
+    "log_path": "./data/topics",
+    "config_path": "./data/config"
+  }
+}

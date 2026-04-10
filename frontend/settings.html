@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - MultiAI 对话系统</title>
+    <link rel="stylesheet" href="css/style.css?v=202604091542">
+</head>
+<body class="settings-page">
+    <div class="settings-container">
+        <header class="settings-header">
+            <h1>⚙️ 全局配置</h1>
+            <a href="/" class="btn btn-secondary">← 返回</a>
+        </header>
+
+        <!-- 模型配置表格 -->
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>🤖 模型配置</h2>
+                <div class="section-actions">
+                    <button class="btn btn-primary" id="addModelBtn">+ 添加模型</button>
+                    <button class="btn btn-secondary" id="importModelsBtn">📥 导入</button>
+                    <button class="btn btn-secondary" id="exportModelsBtn">📤 导出</button>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="models-table" id="modelsTable">
+                    <thead>
+                        <tr>
+                            <th>别名</th>
+                            <th>模型名称</th>
+                            <th>API 类型</th>
+                            <th>Base URL</th>
+                            <th>API Key</th>
+                            <th>模型人设</th>
+                            <th>启用</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modelsTableBody">
+                        <tr class="empty-row">
+                            <td colspan="8">暂无模型配置，点击"添加模型"开始</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 全局设置 -->
+        <section class="settings-section">
+            <h2>🔧 全局设置</h2>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label>默认日志路径</label>
+                    <input type="text" id="logPath" value="./data/topics" readonly />
+                </div>
+                <div class="setting-item">
+                    <label>默认Token上限</label>
+                    <input type="number" id="maxTokens" value="4096" />
+                </div>
+            </div>
+            <button class="btn btn-primary" id="saveSettingsBtn">保存设置</button>
+        </section>
+    </div>
+
+    <!-- 添加/编辑模型弹窗 -->
+    <div class="modal" id="modelModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="modelModalTitle">添加模型</h3>
+                <button class="close-btn" id="closeModelModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modelId" />
+                <div class="form-grid">
+                    <div class="form-item">
+                        <label>别名 *</label>
+                        <input type="text" id="modelAlias" placeholder="例如：智言" required />
+                    </div>
+                    <div class="form-item">
+                        <label>模型名称 *</label>
+                        <input type="text" id="modelName" placeholder="例如：gpt-4o" required />
+                    </div>
+                    <div class="form-item">
+                        <label>API 类型 *</label>
+                        <select id="apiType" required>
+                            <option value="OpenAI">OpenAI</option>
+                            <option value="Claude">Claude</option>
+                            <option value="Ollama">Ollama</option>
+                            <option value="Qwen">Qwen</option>
+                            <option value="Custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>Base URL *</label>
+                        <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" required />
+                    </div>
+                    <div class="form-item">
+                        <label>API Key *</label>
+                        <input type="password" id="apiKey" placeholder="sk-..." required />
+                    </div>
+                    <div class="form-item">
+                        <label>模型人设</label>
+                        <textarea id="defaultPrompt" rows="3" placeholder="你是一位严谨的AI助手，擅长深度分析..."></textarea>
+                    </div>
+                </div>
+                <div class="form-item checkbox-item">
+                    <input type="checkbox" id="modelEnabled" checked />
+                    <label for="modelEnabled">启用此模型</label>
+                </div>
+                <div class="form-item checkbox-item">
+                    <input type="checkbox" id="modelDefault" />
+                    <label for="modelDefault">设为默认模型</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="testConnectionBtn">🧪 测试连接</button>
+                <button class="btn btn-secondary" id="cancelModelModal">取消</button>
+                <button class="btn btn-primary" id="saveModelBtn">保存</button>
+            </div>
+            <div class="test-result" id="testResult"></div>
+        </div>
+    </div>
+
+    <!-- 导入弹窗 -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>导入配置</h3>
+                <button class="close-btn" id="closeImportModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label>粘贴 JSON 配置</label>
+                <textarea id="importTextarea" placeholder='{"models": [...]}'></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelImport">取消</button>
+                <button class="btn btn-primary" id="confirmImport">导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导出弹窗 -->
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>导出配置</h3>
+                <button class="close-btn" id="closeExportModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="exportTextarea" readonly></textarea>
+                <button class="btn btn-primary" id="copyExportBtn">📋 复制到剪贴板</button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeExport">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="toast" id="toast"></div>
+
+    <script src="js/settings.js?v=202604091542"></script>
+</body>
+</html>

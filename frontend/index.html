@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiAI 对话系统</title>
+    <link rel="stylesheet" href="css/style.css?v=202604091542">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧会话列表 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>会话列表</h2>
+                <button class="btn btn-primary" id="newSessionBtn">+ 新建</button>
+            </div>
+            <div class="session-list" id="sessionList">
+                <div class="empty-state">暂无会话</div>
+            </div>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary" id="settingsBtn">⚙️ 设置</button>
+            </div>
+        </aside>
+
+        <!-- 右侧主对话区 -->
+        <main class="main-content">
+            <!-- 顶部工具栏 -->
+            <header class="toolbar">
+                <div class="toolbar-left">
+                    <span class="session-title" id="currentSessionTitle">选择或新建会话</span>
+                </div>
+                <div class="toolbar-right">
+                    <div class="status-bar" id="statusBar">
+                        <span class="status-item" id="statusIndicator">🔴 空闲</span>
+                        <span class="status-item" id="roundIndicator">第 0 轮</span>
+                        <span class="status-item" id="timeIndicator">⏱️ 0m 0s</span>
+                        <span class="status-item" id="tokenIndicator">🔢 0 tokens</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 牵引主题区域 -->
+            <div class="topic-section" id="topicSection">
+                <div class="topic-input-wrapper">
+                    <label for="topicInput">🎯 牵引主题</label>
+                    <input type="text" id="topicInput" placeholder="输入讨论主题，例如：如何提升用户复购率？" />
+                </div>
+                <div class="config-panel">
+                    <div class="config-item">
+                        <label>停止条件</label>
+                        <select id="stopConditionType">
+                            <option value="rounds">循环次数</option>
+                            <option value="duration">运行时长(分钟)</option>
+                            <option value="tokens">Token上限(千)</option>
+                        </select>
+                        <input type="number" id="stopConditionValue" value="5" min="1" />
+                    </div>
+                    <div class="config-item">
+                        <label>自定义指令</label>
+                        <textarea id="customPrompt" rows="2" placeholder="可选，补充指令"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对话显示区 -->
+            <div class="chat-container" id="chatContainer">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="welcome-message">
+                        <h1>🎉 欢迎使用 MultiAI 对话系统</h1>
+                        <p>选择左侧会话或新建会话开始多模型协同对话</p>
+                        <div class="features">
+                            <div class="feature-item">🎯 牵引主题聚焦</div>
+                            <div class="feature-item">🤖 多模型协同</div>
+                            <div class="feature-item">📝 Markdown 归档</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制按钮区 -->
+            <div class="control-panel" id="controlPanel">
+                <div class="control-buttons">
+                    <button class="btn btn-success btn-large" id="startBtn" disabled>▶️ 启动</button>
+                    <button class="btn btn-warning btn-large" id="pauseBtn" disabled>⏸️ 暂停</button>
+                    <button class="btn btn-danger btn-large" id="summarizeBtn" disabled>📝 总结</button>
+                    <button class="btn btn-info btn-large" id="exportBtn" disabled>📤 导出</button>
+                </div>
+            </div>
+
+            <!-- 追问输入区 -->
+            <div class="question-section" id="questionSection">
+                <div class="question-input-wrapper">
+                    <input type="text" id="questionInput" placeholder="输入追问内容，按回车发送..." disabled />
+                    <button class="btn btn-primary" id="sendQuestionBtn" disabled>➕ 追问</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 新建会话弹窗 -->
+    <div class="modal" id="newSessionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建会话</h3>
+                <button class="close-btn" id="closeNewSessionModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label>输入牵引主题</label>
+                <input type="text" id="newTopicInput" placeholder="输入讨论主题..." />
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelNewSession">取消</button>
+                <button class="btn btn-primary" id="confirmNewSession">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认删除弹窗 -->
+    <div class="modal" id="deleteSessionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>确认删除</h3>
+                <button class="close-btn" id="closeDeleteModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这个会话吗？此操作不可撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelDelete">取消</button>
+                <button class="btn btn-danger" id="confirmDelete">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js?v=202604091542"></script>
+    </body>
+</html>
