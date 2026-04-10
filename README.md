@@ -20,14 +20,16 @@ pip install -r requirements.txt
 
 ### 2. 启动后端服务
 
-```bash
-cd backend
-python main.py
+```@echo off
+chcp 65001 >nul
+cd /d "%~dp0backend"
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+pause
 ```
 
 ### 3. 打开前端
 
-在浏览器中打开 `frontend/index.html`
+在浏览器中打开 `localhost:8000`
 
 ## 项目结构
 
@@ -56,7 +58,7 @@ MultiChat/
 
 ### 添加模型配置
 
-1. 点击右上角「设置」按钮
+1. 点击左下角「设置」按钮
 2. 在模型配置表格中添加 API 信息
 3. 点击「测试连接」验证配置
 4. 保存配置
@@ -67,6 +69,8 @@ MultiChat/
 2. 输入「牵引主题」
 3. 配置循环条件（轮数/时长/Token上限）
 4. 点击「启动」开始多模型协同对话
+5. 点击「总结」，自动给出内容的总结
+6. 点击「导出」，下载本次对话文件
 
 ### 快捷键
 
