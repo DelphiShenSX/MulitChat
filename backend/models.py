@@ -73,8 +73,9 @@ class ChatRequest(BaseModel):
     session_id: str
     topic_summary: Optional[str] = None
     topic: str
-    stop_condition: StopCondition = Field(default_factory=StopCondition())
+    stop_condition: StopCondition = Field(default_factory=lambda: StopCondition())
     custom_prompt: Optional[str] = None
+    resume: bool = False  # 是否从暂停位置继续
 
 
 class QuestionRequest(BaseModel):

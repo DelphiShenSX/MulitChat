@@ -1,6 +1,34 @@
 // MultiAI 对话系统 - 设置页面 JavaScript
 
-const API_BASE = 'http://localhost:8000';
+// 服务器地址（初始化前使用回退值）
+let _apiBase = `http://${window.location.hostname}:8000`;
+
+// 异步初始化服务器地址（从后端config.ini读取）
+async function initApiBase() {
+    // 先尝试从localStorage读取
+    const saved = localStorage.getItem('serverUrl');
+    if (saved) {
+        _apiBase = saved;
+        return _apiBase;
+    }
+
+    // 从后端获取服务器配置
+    try {
+        const response = await fetch('/api/server-config');
+        const data = await response.json();
+        _apiBase = data.server_url;
+        localStorage.setItem('serverUrl', _apiBase);
+        return _apiBase;
+    } catch (error) {
+        // 保持使用当前域名作为回退
+        return _apiBase;
+    }
+}
+
+// 获取服务器地址（同步版本）
+function getApiBase() {
+    return _apiBase;
+}
 
 // DOM 元素
 const elements = {
@@ -11,6 +39,7 @@ const elements = {
     saveSettingsBtn: document.getElementById('saveSettingsBtn'),
     logPath: document.getElementById('logPath'),
     maxTokens: document.getElementById('maxTokens'),
+    serverUrl: document.getElementById('serverUrl'),
 
     // 模型弹窗
     modelModal: document.getElementById('modelModal'),
@@ -63,6 +92,8 @@ function showToast(message, type = 'info') {
 
 // 初始化
 async function init() {
+    // 首先初始化API地址
+    await initApiBase();
     await loadModels();
     await loadSettings();
     setupEventListeners();
@@ -71,7 +102,7 @@ async function init() {
 // 加载模型列表
 async function loadModels() {
     try {
-        const response = await fetch(`${API_BASE}/api/models`);
+        const response = await fetch(`${getApiBase()}/api/models`);
         const data = await response.json();
         renderModelsTable(data.models || []);
     } catch (error) {
@@ -123,7 +154,11 @@ function renderModelsTable(models) {
 // 加载设置
 async function loadSettings() {
     try {
-        const response = await fetch(`${API_BASE}/api/settings`);
+        // 加载服务器地址
+        if (elements.serverUrl) {
+            elements.serverUrl.value = getApiBase();
+        }
+        const response = await fetch(`${getApiBase()}/api/settings`);
         const data = await response.json();
         elements.maxTokens.value = data.max_tokens_per_request || 4096;
     } catch (error) {
@@ -151,7 +186,7 @@ function showAddModelModal() {
 // 编辑模型
 async function editModel(modelId) {
     try {
-        const response = await fetch(`${API_BASE}/api/models`);
+        const response = await fetch(`${getApiBase()}/api/models`);
         const data = await response.json();
         const model = data.models.find(m => m.id === modelId);
 
@@ -198,11 +233,11 @@ async function saveModel() {
         let url, method;
         if (modelId) {
             model.id = modelId;
-            url = `${API_BASE}/api/models/${modelId}`;
+            url = `${getApiBase()}/api/models/${modelId}`;
             method = 'PUT';
         } else {
             model.id = generateId();
-            url = `${API_BASE}/api/models`;
+            url = `${getApiBase()}/api/models`;
             method = 'POST';
         }
 
@@ -230,7 +265,7 @@ async function deleteModel(modelId) {
     if (!confirm('确定要删除这个模型吗？')) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/models/${modelId}`, {
+        const response = await fetch(`${getApiBase()}/api/models/${modelId}`, {
             method: 'DELETE'
         });
 
@@ -267,7 +302,7 @@ async function testConnection() {
     elements.testResult.style.display = 'block';
 
     try {
-        const response = await fetch(`${API_BASE}/api/models/test`, {
+        const response = await fetch(`${getApiBase()}/api/models/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config: model })
@@ -302,7 +337,7 @@ async function importModels() {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/models/import`, {
+        const response = await fetch(`${getApiBase()}/api/models/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(configStr)
@@ -324,7 +359,7 @@ async function importModels() {
 // 导出配置
 async function showExportModal() {
     try {
-        const response = await fetch(`${API_BASE}/api/models/export`);
+        const response = await fetch(`${getApiBase()}/api/models/export`);
         const data = await response.json();
         elements.exportTextarea.value = data.config;
         openModal(elements.exportModal);
@@ -342,7 +377,13 @@ function copyExportConfig() {
 // 保存设置
 async function saveSettings() {
     try {
-        const response = await fetch(`${API_BASE}/api/settings`, {
+        // 保存服务器地址到 localStorage
+        const serverUrl = elements.serverUrl.value.trim();
+        if (serverUrl) {
+            localStorage.setItem('serverUrl', serverUrl);
+        }
+
+        const response = await fetch(`${getApiBase()}/api/settings`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

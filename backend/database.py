@@ -61,7 +61,7 @@ class Database:
         conn.commit()
         conn.close()
 
-    def save_message(self, topic_summary: str, message: Message):
+    def save_message(self, topic_summary: str, message: Message) -> int:
         db_path = self._get_db_path(topic_summary)
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -79,8 +79,10 @@ class Database:
             message.tokens
         ))
 
+        msg_id = cursor.lastrowid
         conn.commit()
         conn.close()
+        return msg_id
 
     def get_messages(self, topic_summary: str, session_id: str) -> List[Message]:
         db_path = self._get_db_path(topic_summary)
@@ -112,6 +114,39 @@ class Database:
 
         conn.close()
         return messages
+
+    def get_latest_message(self, topic_summary: str, session_id: str) -> Optional[Message]:
+        """获取会话的最后一条消息"""
+        db_path = self._get_db_path(topic_summary)
+        if not db_path.exists():
+            return None
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, session_id, role, content, model_alias, model_name, timestamp, tokens
+            FROM messages
+            WHERE session_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (session_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return Message(
+                id=row[0],
+                session_id=row[1],
+                role=row[2],
+                content=row[3],
+                model_alias=row[4],
+                model_name=row[5],
+                timestamp=datetime.fromisoformat(row[6]),
+                tokens=row[7]
+            )
+        return None
 
     def save_session(self, topic_summary: str, session: Session):
         self.init_db(topic_summary)

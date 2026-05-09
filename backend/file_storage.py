@@ -68,11 +68,11 @@ class FileStorage:
 
         with open(md_path, "a", encoding="utf-8") as f:
             if model_alias:
-                f.write(f"\n{model_alias}认为：\n")
+                f.write(f"\n# {model_alias}认为：\n")
             elif is_system:
-                f.write(f"\n系统：\n")
+                f.write(f"\n# 系统：\n")
             else:
-                f.write("\n用户：\n")
+                f.write("\n# 用户：\n")
 
             if content:
                 # 统一换行符，去掉每行开头的 > 符号

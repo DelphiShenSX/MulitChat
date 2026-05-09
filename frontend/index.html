@@ -46,18 +46,18 @@
                     <input type="text" id="topicInput" placeholder="输入讨论主题，例如：如何提升用户复购率？" />
                 </div>
                 <div class="config-panel">
-                    <div class="config-item">
+                    <div class="config-item inline">
                         <label>停止条件</label>
                         <select id="stopConditionType">
                             <option value="rounds">循环次数</option>
-                            <option value="duration">运行时长(分钟)</option>
+                            <option value="duration">时长(分钟)</option>
                             <option value="tokens">Token上限(千)</option>
                         </select>
-                        <input type="number" id="stopConditionValue" value="5" min="1" />
+                        <input type="number" id="stopConditionValue" value="5" min="1" style="width: 60px;" />
                     </div>
-                    <div class="config-item">
+                    <div class="config-item inline" style="flex: 1;">
                         <label>自定义指令</label>
-                        <textarea id="customPrompt" rows="2" placeholder="可选，补充指令"></textarea>
+                        <input type="text" id="customPrompt" placeholder="可选，补充指令" style="width: 100%;" />
                     </div>
                 </div>
             </div>

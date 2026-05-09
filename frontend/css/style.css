@@ -115,7 +115,7 @@ body {
 }
 
 .sidebar-header {
-    padding: 20px;
+    padding: 20px 24px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
@@ -187,7 +187,7 @@ body {
 }
 
 .sidebar-footer {
-    padding: 16px 20px;
+    padding: 20px 24px;
     border-top: 1px solid var(--border-color);
 }
 
@@ -235,10 +235,15 @@ body {
     padding: 20px 24px;
     background: var(--sidebar-bg);
     border-bottom: 1px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .topic-input-wrapper {
     margin-bottom: 16px;
+}
+
+.topic-input-wrapper input {
+    box-sizing: border-box;
 }
 
 .topic-input-wrapper label {
@@ -264,7 +269,7 @@ body {
 .config-panel {
     display: flex;
     gap: 20px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .config-item {
@@ -273,9 +278,14 @@ body {
     gap: 10px;
 }
 
+.config-item.inline {
+    flex-wrap: nowrap;
+}
+
 .config-item label {
     font-size: 14px;
     color: #666;
+    white-space: nowrap;
 }
 
 .config-item select,
@@ -292,16 +302,11 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 14px;
-    width: 100%;
 }
 
 .config-item textarea {
     min-height: 30px;
     resize: vertical;
-}
-
-.config-item:has(#customPrompt) {
-    flex-basis: 100%;
 }
 
 /* ==================== 对话区域 ==================== */
@@ -359,17 +364,19 @@ body {
     display: flex;
     justify-content: space-between;
     margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 8px 12px;
+    background: var(--primary-color);
+    border-radius: 6px;
+    color: #fff;
 }
 
 .message-role {
     font-weight: 600;
-    color: var(--primary-color);
+    color: #fff;
 }
 
 .message-role.system {
-    color: #faad14;
+    color: #fff;
 }
 
 .message-role.user {
@@ -421,9 +428,10 @@ body {
 
 /* ==================== 追问区域 ==================== */
 .question-section {
-    padding: 16px 24px;
+    padding: 20px 24px;
     background: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .question-input-wrapper {
@@ -439,6 +447,7 @@ body {
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: 15px;
+    box-sizing: border-box;
 }
 
 .question-input-wrapper input:focus {

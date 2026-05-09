@@ -21,6 +21,7 @@ from models import (
     CreateSessionRequest
 )
 from config import config_manager
+from config_loader import get_server_url, get_frontend_url
 from database import database
 from file_storage import file_storage
 from api_handler import api_handler
@@ -30,6 +31,8 @@ from api_handler import api_handler
 running_sessions = {}  # session_id -> running flag
 session_locks = {}     # session_id -> asyncio.Lock
 current_model = {}     # session_id -> 当前正在调用的模型别名
+session_progress = {}  # session_id -> {"round": int, "model_index": int, "is_paused": bool}
+pause_requested = {}   # session_id -> bool，是否请求暂停（在当前模型完成后暂停）
 
 # SSE 事件订阅者
 sse_subscribers = {}  # session_id -> list of asyncio.Queue
@@ -141,6 +144,15 @@ async def get_messages(topic_summary: str, session_id: str):
     return {"messages": [m.model_dump() for m in messages]}
 
 
+@app.get("/api/messages/{topic_summary}/{session_id}/latest")
+async def get_latest_message(topic_summary: str, session_id: str):
+    """获取会话的最后一条消息"""
+    message = database.get_latest_message(topic_summary, session_id)
+    if message:
+        return {"message": message.model_dump()}
+    return {"message": None}
+
+
 # ==================== 模型配置 API ====================
 
 @app.get("/api/models")
@@ -211,6 +223,7 @@ async def start_chat(request: ChatRequest):
     topic = request.topic
     topic_summary_from_request = request.topic_summary
     stop_condition = request.stop_condition
+    resume = request.resume
 
     # 如果有topic_summary（创建会话时确定的），使用它；否则用topic生成新的
     if topic_summary_from_request:
@@ -259,9 +272,13 @@ async def start_chat(request: ChatRequest):
     database.update_session_status(topic_summary, session_id, "running", 0)
     database.update_session_topic(topic_summary, session_id, topic)
 
+    # 如果不是从暂停恢复，清除之前的进度
+    if not resume:
+        session_progress[session_id] = {"round": 0, "model_index": 0}
+
     # 启动后台任务
     asyncio.create_task(
-        run_chat_loop(session_id, topic_summary, topic, stop_condition, enabled_models, request.custom_prompt)
+        run_chat_loop(session_id, topic_summary, topic, stop_condition, enabled_models, request.custom_prompt, resume)
     )
 
     return {"success": True, "topic_summary": topic_summary}
@@ -273,7 +290,8 @@ async def run_chat_loop(
     topic: str,
     stop_condition: StopCondition,
     enabled_models: list,
-    custom_prompt: Optional[str] = None
+    custom_prompt: Optional[str] = None,
+    resume: bool = False
 ):
     """运行对话循环"""
     import asyncio
@@ -285,7 +303,11 @@ async def run_chat_loop(
         session_locks[session_id] = lock
 
     async with lock:
-        round_num = 0
+        # 获取或初始化进度
+        progress = session_progress.get(session_id, {"round": 0, "model_index": 0})
+        round_num = progress["round"]
+        start_model_index = progress["model_index"] + 1 if resume else 0  # 继续时从下一个模型开始
+
         total_tokens = 0
         start_time = time.time()
         max_rounds = stop_condition.value if stop_condition.type.value == "rounds" else 999
@@ -305,9 +327,14 @@ async def run_chat_loop(
             database.update_session_status(topic_summary, session_id, "running", round_num)
 
             # 按顺序调用每个模型（等待上一个完成后才调用下一个）
-            for model_config in enabled_models:
+            # 继续模式时，start_model_index > 0 会跳过前面的模型
+            for i, model_config in enumerate(enabled_models):
+                if i < start_model_index:
+                    continue
                 if not running_sessions.get(session_id, False):
-                    break
+                    # 暂停时保存当前位置
+                    session_progress[session_id] = {"round": round_num, "model_index": i}
+                    return
 
                 # 记录当前正在调用的模型
                 current_model[session_id] = model_config.alias
@@ -343,7 +370,8 @@ async def run_chat_loop(
                         timestamp=datetime.now(),
                         tokens=tokens
                     )
-                    database.save_message(topic_summary, msg)
+                    msg_id = database.save_message(topic_summary, msg)
+                    msg.id = msg_id
 
                     # 追加到Markdown文件（确保写入完成后再继续）
                     file_storage.append_ai_message(
@@ -361,9 +389,48 @@ async def run_chat_loop(
                         "model_alias": model_config.alias
                     })
                     # 等待一小段时间确保文件写入和前端刷新完成
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(1)
+
+                    # 检查是否请求了暂停（等待当前AI完成后再暂停）
+                    if pause_requested.get(session_id, False):
+                        pause_requested.pop(session_id, None)
+                        session_progress[session_id] = {"round": round_num, "model_index": i}
+                        running_sessions[session_id] = False
+                        current_model.pop(session_id, None)
+                        database.update_session_status(topic_summary, session_id, "paused", round_num)
+                        await notify_subscribers(session_id, {"type": "paused"})
+                        return
                 else:
-                    print(f"API Error: {result.get('error')}")
+                    # 保存错误消息到数据库
+                    error_content = result.get('error', '未知错误')
+                    error_msg = Message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=f"[调用失败] {error_content}",
+                        model_alias=model_config.alias,
+                        model_name=model_config.model_name,
+                        timestamp=datetime.now(),
+                        tokens=0
+                    )
+                    error_msg_id = database.save_message(topic_summary, error_msg)
+                    error_msg.id = error_msg_id
+
+                    # 追加到Markdown文件
+                    file_storage.append_ai_message(
+                        topic_summary,
+                        model_config.alias,
+                        model_config.model_name,
+                        f"[调用失败] {error_content}"
+                    )
+
+                    # 通知前端
+                    await notify_subscribers(session_id, {
+                        "type": "message",
+                        "topic_summary": topic_summary,
+                        "round": round_num,
+                        "model_alias": model_config.alias
+                    })
+                    print(f"API Error: {error_content}")
 
             # 每轮间隔
             await asyncio.sleep(1)
@@ -413,8 +480,8 @@ async def build_messages(
 
 @app.post("/api/chat/pause")
 async def pause_chat(session_id: str):
-    """暂停对话"""
-    running_sessions[session_id] = False
+    """暂停对话（等待当前AI完成后再暂停）"""
+    pause_requested[session_id] = True
     return {"success": True}
 
 
@@ -422,6 +489,8 @@ async def pause_chat(session_id: str):
 async def stop_chat(session_id: str, topic_summary: str):
     """终止对话"""
     running_sessions[session_id] = False
+    pause_requested.pop(session_id, None)
+    session_progress.pop(session_id, None)
     # 通知所有订阅者
     await notify_subscribers(session_id, {"type": "stopped"})
     return {"success": True}
@@ -633,6 +702,15 @@ async def update_settings(settings: dict):
     """更新设置"""
     config_manager.save_settings(settings)
     return {"success": True}
+
+
+@app.get("/api/server-config")
+async def get_server_config():
+    """获取服务器配置（供前端使用）"""
+    return {
+        "server_url": get_server_url(),
+        "frontend_url": get_frontend_url()
+    }
 
 
 # ==================== 导出 API ====================

@@ -1,6 +1,37 @@
 // MultiAI 对话系统 - 主页面 JavaScript
 
-const API_BASE = 'http://localhost:8000';
+// 服务器地址（初始化前使用回退值）
+let _apiBase = `http://${window.location.hostname}:8000`;
+
+// 异步初始化服务器地址（从后端config.ini读取）
+async function initApiBase() {
+    // 先尝试从localStorage读取
+    const saved = localStorage.getItem('serverUrl');
+    if (saved) {
+        _apiBase = saved;
+        return _apiBase;
+    }
+
+    // 从后端获取服务器配置
+    try {
+        const response = await fetch('/api/server-config');
+        const data = await response.json();
+        _apiBase = data.server_url;
+        localStorage.setItem('serverUrl', _apiBase);
+        return _apiBase;
+    } catch (error) {
+        // 保持使用当前域名作为回退
+        return _apiBase;
+    }
+}
+
+// 获取服务器地址（同步版本）
+function getApiBase() {
+    return _apiBase;
+}
+
+// API_BASE 用于模板字符串 (兼容旧代码)
+const API_BASE = { toString: () => _apiBase };
 
 // 状态管理
 let currentSession = null;
@@ -105,17 +136,31 @@ async function restoreCustomPrompt() {
 // 初始化
 async function init() {
     console.log('Initializing app...');
-    console.log('sessionList element:', elements.sessionList);
-    console.log('newSessionBtn element:', elements.newSessionBtn);
-    
+
+    // 首先初始化API地址
+    await initApiBase();
+    console.log('API Base initialized:', _apiBase);
+
     await loadSessions();
     setupEventListeners();
     setupKeyboardShortcuts();
     restoreCustomPrompt();
 
+    // 监听用户滚动，如果向上滚动查看历史则不再自动滚动
+    elements.chatContainer.addEventListener('scroll', () => {
+        const { scrollTop, scrollHeight, clientHeight } = elements.chatContainer;
+        // 如果用户滚动到距离底部一定距离，认为是主动向上滚动
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        if (distanceToBottom > 100) {
+            userScrolledUp = true;
+        } else {
+            userScrolledUp = false;
+        }
+    });
+
     // 恢复上次的会话状态（从设置页返回时）
     await restoreSessionState();
-    
+
     console.log('App initialized successfully');
 }
 
@@ -243,19 +288,80 @@ async function selectSession(sessionId, topicSummary) {
 }
 
 // 加载消息
-async function loadMessages(sessionId, topicSummary) {
+async function loadMessages(sessionId, topicSummary, appendNew = false) {
     try {
         const response = await fetch(`${API_BASE}/api/messages/${topicSummary}/${sessionId}`);
         const data = await response.json();
-        renderMessages(data.messages || []);
+        renderMessages(data.messages || [], appendNew);
     } catch (error) {
         console.error('Failed to load messages:', error);
         renderMessages([]);
     }
 }
 
+// 追加单条新消息（由SSE触发时使用）
+async function appendLatestMessage(sessionId, topicSummary) {
+    console.log('[DEBUG] appendLatestMessage called', { sessionId, topicSummary });
+    try {
+        const url = `${API_BASE}/api/messages/${topicSummary}/${sessionId}/latest`;
+        console.log('[DEBUG] Fetching from URL:', url);
+        const response = await fetch(url);
+        console.log('[DEBUG] Response status:', response.status);
+        if (!response.ok) return;
+        const data = await response.json();
+        console.log('[DEBUG] Received data:', data);
+        if (data.message) {
+            console.log('[DEBUG] Rendering message:', data.message);
+            renderSingleMessage(data.message);
+        }
+    } catch (error) {
+        console.error('[DEBUG] Failed to append message:', error);
+    }
+}
+
+// 渲染单条消息
+function renderSingleMessage(msg) {
+    console.log('[DEBUG] renderSingleMessage called', msg);
+    // 通过消息ID检查是否已渲染
+    if (msg.id && renderedMessageIds.has(msg.id)) {
+        console.log('[DEBUG] Message already rendered, skipping');
+        return; // 已存在，不重复添加
+    }
+
+    // 标记为已渲染
+    if (msg.id) {
+        renderedMessageIds.add(msg.id);
+    }
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message';
+    msgDiv.innerHTML = `
+        <div class="message-header">
+            <span class="message-role ${msg.role}">
+                ${msg.role === 'user' ? '用户' : msg.model_alias || 'AI'}
+            </span>
+            <span class="message-time">${formatTime(msg.timestamp)}</span>
+        </div>
+        <div class="message-content">${escapeHtml(msg.content)}</div>
+    `;
+    elements.chatMessages.appendChild(msgDiv);
+    console.log('[DEBUG] Message appended to DOM');
+
+    // 如果用户没有主动向上滚动，则滚动到底部
+    // 使用 requestAnimationFrame 确保 DOM 更新完成后再滚动
+    if (!userScrolledUp) {
+        requestAnimationFrame(() => {
+            elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+            console.log('[DEBUG] Scrolled to bottom, scrollTop:', elements.chatContainer.scrollTop, 'scrollHeight:', elements.chatContainer.scrollHeight);
+        });
+    }
+}
+
 // 渲染消息
-function renderMessages(messages) {
+let renderedMessageIds = new Set();  // 跟踪已渲染的消息ID
+let userScrolledUp = false;  // 标记用户是否主动向上滚动
+
+function renderMessages(messages, append = false) {
     if (messages.length === 0) {
         elements.chatMessages.innerHTML = `
             <div class="welcome-message">
@@ -268,23 +374,65 @@ function renderMessages(messages) {
                 </div>
             </div>
         `;
+        renderedMessageIds.clear();
+        userScrolledUp = false;
         return;
     }
 
-    elements.chatMessages.innerHTML = messages.map(msg => `
-        <div class="message">
-            <div class="message-header">
-                <span class="message-role ${msg.role}">
-                    ${msg.role === 'user' ? '用户' : msg.model_alias || 'AI'}
-                </span>
-                <span class="message-time">${formatTime(msg.timestamp)}</span>
-            </div>
-            <div class="message-content">${escapeHtml(msg.content)}</div>
-        </div>
-    `).join('');
+    // 如果是追加模式但没有已渲染的消息ID，则退化为正常模式
+    if (append && renderedMessageIds.size === 0) {
+        append = false;
+    }
 
-    // 滚动到底部
-    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+    if (append) {
+        // 追加模式：只添加新消息，不刷新整个列表
+        let newMessagesAdded = false;
+        for (const msg of messages) {
+            if (renderedMessageIds.has(msg.id)) continue;
+            renderedMessageIds.add(msg.id);
+            newMessagesAdded = true;
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            msgDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="message-role ${msg.role}">
+                        ${msg.role === 'user' ? '用户' : msg.model_alias || 'AI'}
+                    </span>
+                    <span class="message-time">${formatTime(msg.timestamp)}</span>
+                </div>
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+            `;
+            elements.chatMessages.appendChild(msgDiv);
+        }
+        // 如果添加了新消息，且用户没有主动向上滚动，则滚动到底部
+        if (newMessagesAdded && !userScrolledUp) {
+            requestAnimationFrame(() => {
+                elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+            });
+        }
+    } else {
+        // 正常模式：完全重新渲染
+        elements.chatMessages.innerHTML = messages.map(msg => `
+            <div class="message">
+                <div class="message-header">
+                    <span class="message-role ${msg.role}">
+                        ${msg.role === 'user' ? '用户' : msg.model_alias || 'AI'}
+                    </span>
+                    <span class="message-time">${formatTime(msg.timestamp)}</span>
+                </div>
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+            </div>
+        `).join('');
+        // 更新已渲染消息ID集合
+        renderedMessageIds = new Set(messages.map(msg => msg.id));
+        // 重置用户滚动状态
+        userScrolledUp = false;
+        // 滚动到底部
+        requestAnimationFrame(() => {
+            elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+        });
+    }
 }
 
 // 创建新会话
@@ -317,8 +465,10 @@ async function createSession(topic) {
         // 关闭弹窗
         closeModal(elements.newSessionModal);
 
-        // 清空消息区
+        // 清空消息区并重置渲染状态
         elements.chatMessages.innerHTML = '';
+        renderedMessageIds.clear();
+        userScrolledUp = false;
 
         // 开始轮询
         startStatusPolling();
@@ -341,6 +491,9 @@ async function startChat() {
     const stopConditionType = elements.stopConditionType.value;
     const stopConditionValue = parseInt(elements.stopConditionValue.value);
 
+    // 检查是否从暂停恢复
+    const isPaused = elements.pauseBtn.disabled === false && elements.startBtn.disabled === true;
+
     try {
         const response = await fetch(`${API_BASE}/api/chat/start`, {
             method: 'POST',
@@ -353,7 +506,8 @@ async function startChat() {
                     type: stopConditionType,
                     value: stopConditionValue
                 },
-                custom_prompt: elements.customPrompt.value
+                custom_prompt: elements.customPrompt.value,
+                resume: isPaused  // 是否从暂停位置继续
             })
         });
 
@@ -502,18 +656,23 @@ function startStatusPolling() {
     eventSource.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
+            console.log('[DEBUG] SSE message received:', data);
 
             if (data.type === 'thinking') {
                 // 当前模型正在思考
                 updateStatus('running', 0, 0, 0, data.model_alias);
             } else if (data.type === 'message') {
-                // 有新消息，刷新消息列表
-                await loadMessages(currentSession.id, currentTopicSummary);
+                // 有新消息，追加最新消息到列表
+                console.log('[DEBUG] Message event received, calling appendLatestMessage');
+                await appendLatestMessage(currentSession.id, currentTopicSummary);
             } else if (data.type === 'stopped') {
                 // 对话停止
                 updateStatus('stopped');
                 enableControls(true, false, true);
-                await loadMessages(currentSession.id, currentTopicSummary);
+            } else if (data.type === 'paused') {
+                // 对话暂停
+                updateStatus('paused');
+                enableControls(true, false, true);
             }
         } catch (error) {
             console.error('Failed to parse SSE message:', error);
